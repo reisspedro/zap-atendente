@@ -1,4 +1,3 @@
-// ZapAtendente — system prompt compartilhado entre os modos (API e Agent SDK)
 function systemPrompt(biz) {
   const hoje = new Date();
   const servicos = biz.servicos

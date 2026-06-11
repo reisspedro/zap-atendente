@@ -1,9 +1,7 @@
-// Testes do ZapAtendente — roda sem WhatsApp e sem API key (FAKE_LLM)
 process.env.FAKE_LLM = '1';
 process.env.DB_PATH = require('path').join(__dirname, 'test.db');
 const fs = require('fs');
 
-// banco limpo a cada rodada
 for (const f of ['test.db', 'test.db-shm', 'test.db-wal']) {
   try { fs.unlinkSync(require('path').join(__dirname, f)); } catch {}
 }
@@ -21,7 +19,6 @@ function test(name, fn) {
   catch (e) { console.error(`❌ ${name}: ${e.message}`); process.exitCode = 1; }
 }
 
-// uma segunda-feira futura fixa pra testes determinísticos
 const SEG = '2026-06-15';
 const DOM = '2026-06-14';
 

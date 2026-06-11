@@ -1,4 +1,3 @@
-// ZapAtendente — persistência (histórico, agendamentos, pausas)
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');

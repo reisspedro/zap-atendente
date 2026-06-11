@@ -1,6 +1,3 @@
-// ZapAtendente — cérebro via Claude Agent SDK (usa a ASSINATURA do Claude Code, sem custo de API)
-// Requer Claude Code instalado e logado na máquina (claude /login).
-// AVISO: pra uso próprio/demo. Pra revender como serviço a clientes, voltar pro modo API (USE_API=1).
 const store = require('./store');
 const { freeSlots, book } = require('./agenda');
 const { systemPrompt } = require('./prompt');
@@ -9,7 +6,7 @@ const MODEL = process.env.MODEL || 'haiku';
 
 let sdkPromise = null;
 function loadSdk() {
-  // Agent SDK é ESM — import dinâmico a partir de CJS
+
   if (!sdkPromise) sdkPromise = import('@anthropic-ai/claude-agent-sdk');
   return sdkPromise;
 }

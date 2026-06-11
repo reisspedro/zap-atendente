@@ -1,8 +1,3 @@
-// ZapAtendente — cérebro: despacha entre provedores (independente de fornecedor)
-//   PROVIDER=openai      (padrão) → qualquer API OpenAI-compatible: Ollama local (grátis), Groq, DeepSeek, OpenRouter…
-//   PROVIDER=anthropic             → API da Anthropic
-//   PROVIDER=claude-code           → assinatura do Claude Code via Agent SDK (uso próprio/demo)
-//   FAKE_LLM=1                     → respostas falsas (testes sem rede)
 const store = require('./store');
 const { freeSlots, book } = require('./agenda');
 const { systemPrompt } = require('./prompt');
@@ -62,7 +57,6 @@ function runTool(biz, jid, name, input) {
   return { error: `Tool desconhecida: ${name}` };
 }
 
-// resposta fake pra testes sem API key / sem assinatura
 function fakeReply(biz, jid, text) {
   if (/horário|horarios|agendar/i.test(text)) {
     const date = new Date().toLocaleDateString('sv-SE');
@@ -84,7 +78,6 @@ async function apiReply(biz, jid, messages) {
     messages,
   });
 
-  // loop de tools (máx 5 iterações de segurança)
   for (let i = 0; i < 5 && response.stop_reason === 'tool_use'; i++) {
     const toolUses = response.content.filter((b) => b.type === 'tool_use');
     messages.push({ role: 'assistant', content: response.content });

@@ -1,4 +1,3 @@
-// ZapAtendente — comandos do dono (enviados de qualquer chat pelo número do negócio)
 const store = require('./store');
 
 function isOwnerCommand(text) {
@@ -9,7 +8,7 @@ function handle(text, currentJid) {
   const [cmd, ...rest] = text.trim().split(/\s+/);
 
   if (cmd === '#agenda') {
-    // #agenda → hoje | #agenda 2026-06-15 | #agenda amanha
+
     let date = rest[0];
     const today = new Date();
     if (!date || date === 'hoje') date = today.toLocaleDateString('sv-SE');
@@ -50,7 +49,7 @@ function handle(text, currentJid) {
     ].join('\n');
   }
 
-  return null; // não é comando conhecido — ignora
+  return null;
 }
 
 module.exports = { isOwnerCommand, handle };

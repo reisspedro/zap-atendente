@@ -1,4 +1,3 @@
-// ZapAtendente — lógica de horários e agendamento
 const store = require('./store');
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
@@ -11,7 +10,6 @@ function toHHMM(min) {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 }
 
-// slots livres de um dia, dado o business.json
 function freeSlots(biz, date) {
   const d = new Date(`${date}T12:00:00`);
   if (isNaN(d)) return { error: 'Data inválida — usar formato AAAA-MM-DD' };
@@ -25,9 +23,8 @@ function freeSlots(biz, date) {
     if (!store.isSlotTaken(date, hhmm)) slots.push(hhmm);
   }
 
-  // se for hoje, corta horários que já passaram
   const now = new Date();
-  const todayStr = now.toLocaleDateString('sv-SE'); // YYYY-MM-DD local
+  const todayStr = now.toLocaleDateString('sv-SE');
   if (date === todayStr) {
     const nowMin = now.getHours() * 60 + now.getMinutes();
     return { closed: false, slots: slots.filter((s) => toMin(s) > nowMin) };

@@ -1,5 +1,3 @@
-// ZapAtendente — cérebro via API OpenAI-compatible (independente da Anthropic)
-// Funciona com: Ollama local (grátis), Groq, DeepSeek, OpenRouter, OpenAI etc.
 const store = require('./store');
 const { systemPrompt } = require('./prompt');
 
@@ -37,7 +35,6 @@ async function openaiReply(biz, jid, text, TOOLS, runTool) {
 
   let msg = await chat(messages, tools);
 
-  // loop de tool calls (máx 5 iterações de segurança)
   for (let i = 0; i < 5 && msg.tool_calls?.length; i++) {
     messages.push(msg);
     for (const tc of msg.tool_calls) {

@@ -1,5 +1,3 @@
-// ZapAtendente — conexão WhatsApp (Baileys) + roteamento
-// "Toda obra do diligente certamente prospera." — Provérbios 13:4
 const makeWASocket = require('@whiskeysockets/baileys').default;
 const { useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
@@ -16,7 +14,6 @@ const biz = JSON.parse(fs.readFileSync(BIZ_PATH, 'utf8'));
 
 const AUTH_DIR = process.env.AUTH_DIR || path.join(__dirname, '..', 'data', 'auth');
 
-// ids de mensagens que o próprio bot mandou (pra distinguir de humano no mesmo número)
 const botSentIds = new Set();
 
 async function start() {
@@ -60,7 +57,7 @@ async function start() {
 
 async function handleMessage(sock, msg) {
   const jid = msg.key.remoteJid;
-  if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') return; // ignora grupos/status
+  if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') return;
 
   const text =
     msg.message?.conversation ||
@@ -68,22 +65,20 @@ async function handleMessage(sock, msg) {
     '';
   if (!text) return;
 
-  // mensagem enviada PELO número do negócio (fromMe)
   if (msg.key.fromMe) {
     if (botSentIds.has(msg.key.id)) { botSentIds.delete(msg.key.id); return; }
-    // é o DONO digitando no aparelho:
+
     if (commands.isOwnerCommand(text)) {
       const out = commands.handle(text, jid);
       if (out) await send(sock, jid, out);
     } else {
-      // dono respondeu manualmente um cliente → bot se cala nesse chat por 4h
+
       store.pause(jid, 4);
       console.log(`🤫 Humano assumiu ${jid} — bot pausado 4h.`);
     }
     return;
   }
 
-  // mensagem de cliente
   if (store.isPaused(jid)) return;
 
   const out = await reply(biz, jid, text);
