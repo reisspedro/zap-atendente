@@ -1,0 +1,17 @@
+{
+  "name": "zap-atendente",
+  "version": "0.1.0",
+  "description": "Atendente de IA para WhatsApp de pequenos negócios — responde, informa e agenda sozinho",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node test/run.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "better-sqlite3": "^12.8.0",
+    "pino": "^9.0.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

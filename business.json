@@ -1,0 +1,28 @@
+{
+  "nome": "Barbearia do Marcos",
+  "descricao": "Barbearia masculina no centro de Joinville. Atendimento com hora marcada.",
+  "endereco": "Rua das Palmeiras, 123 — Centro",
+  "telefone_humano": "47999990000",
+  "servicos": [
+    { "nome": "Corte", "preco": 45, "duracao_min": 30 },
+    { "nome": "Barba", "preco": 35, "duracao_min": 30 },
+    { "nome": "Corte + Barba", "preco": 70, "duracao_min": 60 },
+    { "nome": "Sobrancelha", "preco": 15, "duracao_min": 15 }
+  ],
+  "horarios": {
+    "seg": ["09:00", "19:00"],
+    "ter": ["09:00", "19:00"],
+    "qua": ["09:00", "19:00"],
+    "qui": ["09:00", "19:00"],
+    "sex": ["09:00", "19:00"],
+    "sab": ["09:00", "13:00"],
+    "dom": null
+  },
+  "slot_min": 30,
+  "faq": [
+    { "q": "Aceita cartão?", "a": "Sim — débito, crédito e Pix." },
+    { "q": "Precisa marcar?", "a": "Sim, atendemos só com horário marcado." },
+    { "q": "Tem estacionamento?", "a": "Tem vaga na rua, zona azul." }
+  ],
+  "tom": "informal e simpático, como um atendente jovem de barbearia. Usa 'tu' ou 'você' natural, sem formalidade."
+}
