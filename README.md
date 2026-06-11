@@ -25,10 +25,19 @@ Feito pra barbearia, salão, clínica, estética, petshop, oficina — qualquer 
 
 ## Rodar
 
+**Modo padrão — assinatura Claude (sem custo de API):** requer Claude Code instalado e logado na máquina (`claude` → `/login`). Testado e funcionando, inclusive tool use de agendamento.
+
 ```bash
 npm install
-set ANTHROPIC_API_KEY=sk-ant-...   # (Windows) ou export no Linux
-npm start                           # mostra QR → escanear com o WhatsApp do negócio
+npm start    # mostra QR → escanear com o WhatsApp do negócio
+```
+
+**Modo API (pra quando virar serviço comercial — assinatura não cobre revenda):**
+
+```bash
+set USE_API=1
+set ANTHROPIC_API_KEY=sk-ant-...
+npm start
 ```
 
 Configurar o negócio: editar `business.json` (nome, serviços/preços, horários, FAQ, tom).
@@ -40,8 +49,9 @@ Testes (sem WhatsApp nem API key): `npm test`
 
 | Var | Default | Obs |
 |-----|---------|-----|
-| `ANTHROPIC_API_KEY` | — | obrigatória |
-| `MODEL` | claude-haiku-4-5 | barato de propósito |
+| `USE_API` | — | `1` = usar API paga em vez da assinatura |
+| `ANTHROPIC_API_KEY` | — | só no modo API |
+| `MODEL` | haiku (assinatura) / claude-haiku-4-5 (API) | barato de propósito |
 | `BUSINESS_CONFIG` | ./business.json | config do negócio |
 | `DB_PATH` | ./data/zap.db | banco |
 | `AUTH_DIR` | ./data/auth | sessão WhatsApp (NÃO commitar) |

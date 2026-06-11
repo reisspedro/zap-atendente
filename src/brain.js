@@ -1,11 +1,12 @@
-// ZapAtendente — cérebro: Claude + tools de agendamento
-// Modelo barato de propósito: economia do produto (R$149/mês por cliente) exige custo de IA baixo.
-const Anthropic = require('@anthropic-ai/sdk');
+// ZapAtendente — cérebro: despacha entre os modos
+//   padrão     → Agent SDK (usa a ASSINATURA do Claude Code — sem custo de API)
+//   USE_API=1  → API da Anthropic (pra quando virar serviço comercial)
+//   FAKE_LLM=1 → respostas falsas (testes sem rede)
 const store = require('./store');
 const { freeSlots, book } = require('./agenda');
+const { systemPrompt } = require('./prompt');
 
 const MODEL = process.env.MODEL || 'claude-haiku-4-5';
-const client = process.env.FAKE_LLM ? null : new Anthropic();
 
 const TOOLS = [
   {
@@ -49,40 +50,6 @@ const TOOLS = [
   },
 ];
 
-function systemPrompt(biz) {
-  const hoje = new Date();
-  const servicos = biz.servicos
-    .map((s) => `- ${s.nome}: R$${s.preco} (${s.duracao_min}min)`)
-    .join('\n');
-  const faq = (biz.faq || []).map((f) => `P: ${f.q}\nR: ${f.a}`).join('\n');
-  const horarios = Object.entries(biz.horarios)
-    .map(([d, h]) => `${d}: ${h ? `${h[0]}-${h[1]}` : 'fechado'}`)
-    .join(', ');
-
-  return `Você é o atendente virtual de WhatsApp do negócio "${biz.nome}".
-${biz.descricao}
-Endereço: ${biz.endereco}
-
-HOJE é ${hoje.toLocaleDateString('sv-SE')} (${['domingo','segunda','terça','quarta','quinta','sexta','sábado'][hoje.getDay()]}), ${hoje.getHours()}:${String(hoje.getMinutes()).padStart(2, '0')}.
-
-SERVIÇOS E PREÇOS:
-${servicos}
-
-HORÁRIO DE FUNCIONAMENTO: ${horarios}
-
-FAQ:
-${faq}
-
-REGRAS:
-- Tom: ${biz.tom}
-- Responda CURTO — é WhatsApp, não e-mail. 1-3 linhas na maioria das vezes.
-- Para agendar: pergunte serviço, dia e nome se ainda não souber. Use ver_horarios antes de oferecer horários (ofereça no máximo 4-5 opções). Só chame agendar após confirmação explícita.
-- Converta datas relativas ("amanhã", "sexta") para AAAA-MM-DD usando a data de HOJE acima.
-- NUNCA invente preço, serviço ou horário que não esteja listado.
-- Se o cliente pedir algo fora do seu alcance (reclamação séria, negociação, urgência), diga que vai chamar o responsável e oriente ligar para ${biz.telefone_humano}.
-- Nunca diga que é IA, a menos que perguntem diretamente — aí seja honesto.`;
-}
-
 function runTool(biz, jid, name, input) {
   if (name === 'ver_horarios') return freeSlots(biz, input.date);
   if (name === 'agendar') return book(biz, jid, input.client_name, input.service, input.date, input.time);
@@ -94,7 +61,7 @@ function runTool(biz, jid, name, input) {
   return { error: `Tool desconhecida: ${name}` };
 }
 
-// resposta fake pra testes sem API key
+// resposta fake pra testes sem API key / sem assinatura
 function fakeReply(biz, jid, text) {
   if (/horário|horarios|agendar/i.test(text)) {
     const date = new Date().toLocaleDateString('sv-SE');
@@ -104,16 +71,9 @@ function fakeReply(biz, jid, text) {
   return `[FAKE] Recebi: "${text}"`;
 }
 
-async function reply(biz, jid, text) {
-  store.addMessage(jid, 'user', text);
-
-  if (process.env.FAKE_LLM) {
-    const out = fakeReply(biz, jid, text);
-    store.addMessage(jid, 'assistant', out);
-    return out;
-  }
-
-  const messages = store.history(jid).map((m) => ({ role: m.role, content: m.content }));
+async function apiReply(biz, jid, messages) {
+  const Anthropic = require('@anthropic-ai/sdk');
+  const client = new Anthropic();
 
   let response = await client.messages.create({
     model: MODEL,
@@ -144,11 +104,27 @@ async function reply(biz, jid, text) {
     });
   }
 
-  const out = response.content
+  return response.content
     .filter((b) => b.type === 'text')
     .map((b) => b.text)
     .join('\n')
     .trim() || '…';
+}
+
+async function reply(biz, jid, text) {
+  store.addMessage(jid, 'user', text);
+
+  let out;
+  if (process.env.FAKE_LLM) {
+    out = fakeReply(biz, jid, text);
+  } else if (process.env.USE_API) {
+    const messages = store.history(jid).map((m) => ({ role: m.role, content: m.content }));
+    out = await apiReply(biz, jid, messages);
+  } else {
+    const { sdkReply } = require('./brain-sdk');
+    out = await sdkReply(biz, jid, text);
+  }
+
   store.addMessage(jid, 'assistant', out);
   return out;
 }
