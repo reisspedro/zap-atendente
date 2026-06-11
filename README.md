@@ -25,20 +25,21 @@ Feito pra barbearia, salão, clínica, estética, petshop, oficina — qualquer 
 
 ## Rodar
 
-**Modo padrão — assinatura Claude (sem custo de API):** requer Claude Code instalado e logado na máquina (`claude` → `/login`). Testado e funcionando, inclusive tool use de agendamento.
+**Independente de fornecedor de IA.** Padrão: qualquer API OpenAI-compatible — incluindo **Ollama local (100% grátis)**, Groq, DeepSeek, OpenRouter.
 
 ```bash
 npm install
+# Ollama local (grátis): instalar ollama.com → ollama pull llama3.1
 npm start    # mostra QR → escanear com o WhatsApp do negócio
-```
 
-**Modo API (pra quando virar serviço comercial — assinatura não cobre revenda):**
-
-```bash
-set USE_API=1
-set ANTHROPIC_API_KEY=sk-ant-...
+# ou apontar pra um provedor hospedado:
+set LLM_BASE_URL=https://api.groq.com/openai/v1
+set LLM_API_KEY=gsk_...
+set MODEL=llama-3.3-70b-versatile
 npm start
 ```
+
+Outros provedores: `PROVIDER=anthropic` (API Claude) ou `PROVIDER=claude-code` (assinatura Claude Code, só uso próprio/demo).
 
 Configurar o negócio: editar `business.json` (nome, serviços/preços, horários, FAQ, tom).
 Cada cliente do produto = uma cópia de `business.json` + uma instância + um número.
@@ -49,9 +50,11 @@ Testes (sem WhatsApp nem API key): `npm test`
 
 | Var | Default | Obs |
 |-----|---------|-----|
-| `USE_API` | — | `1` = usar API paga em vez da assinatura |
-| `ANTHROPIC_API_KEY` | — | só no modo API |
-| `MODEL` | haiku (assinatura) / claude-haiku-4-5 (API) | barato de propósito |
+| `PROVIDER` | openai | `openai` (compatible) / `anthropic` / `claude-code` |
+| `LLM_BASE_URL` | http://localhost:11434/v1 | Ollama local; trocar p/ Groq, DeepSeek etc. |
+| `LLM_API_KEY` | ollama | key do provedor escolhido |
+| `ANTHROPIC_API_KEY` | — | só com PROVIDER=anthropic |
+| `MODEL` | llama3.1 (openai) / claude-haiku-4-5 (anthropic) | |
 | `BUSINESS_CONFIG` | ./business.json | config do negócio |
 | `DB_PATH` | ./data/zap.db | banco |
 | `AUTH_DIR` | ./data/auth | sessão WhatsApp (NÃO commitar) |

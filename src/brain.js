@@ -1,7 +1,8 @@
-// ZapAtendente — cérebro: despacha entre os modos
-//   padrão     → Agent SDK (usa a ASSINATURA do Claude Code — sem custo de API)
-//   USE_API=1  → API da Anthropic (pra quando virar serviço comercial)
-//   FAKE_LLM=1 → respostas falsas (testes sem rede)
+// ZapAtendente — cérebro: despacha entre provedores (independente de fornecedor)
+//   PROVIDER=openai      (padrão) → qualquer API OpenAI-compatible: Ollama local (grátis), Groq, DeepSeek, OpenRouter…
+//   PROVIDER=anthropic             → API da Anthropic
+//   PROVIDER=claude-code           → assinatura do Claude Code via Agent SDK (uso próprio/demo)
+//   FAKE_LLM=1                     → respostas falsas (testes sem rede)
 const store = require('./store');
 const { freeSlots, book } = require('./agenda');
 const { systemPrompt } = require('./prompt');
@@ -114,15 +115,22 @@ async function apiReply(biz, jid, messages) {
 async function reply(biz, jid, text) {
   store.addMessage(jid, 'user', text);
 
+  const provider = process.env.FAKE_LLM
+    ? 'fake'
+    : (process.env.PROVIDER || (process.env.USE_API ? 'anthropic' : 'openai'));
+
   let out;
-  if (process.env.FAKE_LLM) {
+  if (provider === 'fake') {
     out = fakeReply(biz, jid, text);
-  } else if (process.env.USE_API) {
+  } else if (provider === 'anthropic') {
     const messages = store.history(jid).map((m) => ({ role: m.role, content: m.content }));
     out = await apiReply(biz, jid, messages);
-  } else {
+  } else if (provider === 'claude-code') {
     const { sdkReply } = require('./brain-sdk');
     out = await sdkReply(biz, jid, text);
+  } else {
+    const { openaiReply } = require('./brain-openai');
+    out = await openaiReply(biz, jid, text, TOOLS, runTool);
   }
 
   store.addMessage(jid, 'assistant', out);
