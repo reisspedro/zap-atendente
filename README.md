@@ -19,7 +19,7 @@ Feito pra barbearia, salão, clínica, estética, petshop, oficina — qualquer 
 ## Stack
 
 - [Baileys](https://github.com/WhiskeySockets/Baileys) — WhatsApp Web (QR code, sem API paga da Meta)
-- Claude Haiku (Anthropic) — cérebro com tool use pra agendamento
+- LLM com tool use pra agendamento — provider-agnostic (Ollama local grátis, Groq, DeepSeek, OpenRouter…)
 - SQLite — conversas, agendamentos, pausas
 - Custo de IA: ~R$5-20/mês por negócio em uso normal
 
@@ -39,8 +39,6 @@ set MODEL=llama-3.3-70b-versatile
 npm start
 ```
 
-Outros provedores: `PROVIDER=anthropic` (API Claude) ou `PROVIDER=claude-code` (assinatura Claude Code, só uso próprio/demo).
-
 Configurar o negócio: editar `business.json` (nome, serviços/preços, horários, FAQ, tom).
 Cada cliente do produto = uma cópia de `business.json` + uma instância + um número.
 
@@ -50,11 +48,10 @@ Testes (sem WhatsApp nem API key): `npm test`
 
 | Var | Default | Obs |
 |-----|---------|-----|
-| `PROVIDER` | openai | `openai` (compatible) / `anthropic` / `claude-code` |
+| `PROVIDER` | openai | `openai` (compatible); outros provedores suportados no código |
 | `LLM_BASE_URL` | http://localhost:11434/v1 | Ollama local; trocar p/ Groq, DeepSeek etc. |
 | `LLM_API_KEY` | ollama | key do provedor escolhido |
-| `ANTHROPIC_API_KEY` | — | só com PROVIDER=anthropic |
-| `MODEL` | llama3.1 (openai) / claude-haiku-4-5 (anthropic) | |
+| `MODEL` | llama3.1 | conforme o provedor |
 | `BUSINESS_CONFIG` | ./business.json | config do negócio |
 | `DB_PATH` | ./data/zap.db | banco |
 | `AUTH_DIR` | ./data/auth | sessão WhatsApp (NÃO commitar) |
