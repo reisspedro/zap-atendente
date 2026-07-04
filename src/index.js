@@ -14,7 +14,38 @@ const biz = JSON.parse(fs.readFileSync(BIZ_PATH, 'utf8'));
 
 const AUTH_DIR = process.env.AUTH_DIR || path.join(__dirname, '..', 'data', 'auth');
 
+const BUFFER_MS = Number(process.env.BUFFER_MS) || 2500;
+const FALLBACK_MSG = '⚠️ Tive um probleminha técnico agora. Já avisei o responsável — te respondo em breve!';
+const MEDIA_MSG = 'Opa! Ainda não consigo ouvir áudio nem ver imagem por aqui 😅 Me manda por texto?';
+
 const botSentIds = new Set();
+const buffers = new Map();
+const chains = new Map();
+
+let currentSock = null;
+let reconnectDelay = 1000;
+let reconnecting = false;
+let reminderTimer = null;
+
+function ownerJid() {
+  const phone = biz.dono_whatsapp || biz.telefone_humano;
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, '');
+  return `${digits.startsWith('55') ? digits : '55' + digits}@s.whatsapp.net`;
+}
+
+async function alertOwner(text) {
+  const jid = ownerJid();
+  if (!jid || !currentSock) return;
+  try { await send(currentSock, jid, text); } catch (e) { console.error('Falha ao alertar dono:', e.message); }
+}
+
+function enqueue(jid, fn) {
+  const prev = chains.get(jid) || Promise.resolve();
+  const next = prev.then(fn).catch((e) => console.error(`Erro no chat ${jid}:`, e.message));
+  chains.set(jid, next);
+  return next;
+}
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -23,6 +54,7 @@ async function start() {
     auth: state,
     logger: pino({ level: 'warn' }),
   });
+  currentSock = sock;
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -31,15 +63,24 @@ async function start() {
       console.log('\n📱 Escaneie o QR com o WhatsApp do negócio (Aparelhos conectados):\n');
       qrcode.generate(qr, { small: true });
     }
-    if (connection === 'open') console.log(`✅ ${biz.nome} conectado ao WhatsApp.`);
+    if (connection === 'open') {
+      reconnectDelay = 1000;
+      console.log(`✅ ${biz.nome} conectado ao WhatsApp.`);
+    }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
-      if (code !== DisconnectReason.loggedOut) {
-        console.log('🔄 Reconectando…');
-        start();
-      } else {
+      if (code === DisconnectReason.loggedOut) {
         console.log('❌ Sessão deslogada. Apague data/auth e escaneie de novo.');
+        return;
       }
+      if (reconnecting) return;
+      reconnecting = true;
+      console.log(`🔄 Reconectando em ${reconnectDelay / 1000}s…`);
+      setTimeout(() => {
+        reconnecting = false;
+        start().catch((e) => console.error('Falha na reconexão:', e.message));
+      }, reconnectDelay);
+      reconnectDelay = Math.min(reconnectDelay * 2, 60000);
     }
   });
 
@@ -47,32 +88,49 @@ async function start() {
     if (type !== 'notify') return;
     for (const msg of messages) {
       try {
-        await handleMessage(sock, msg);
+        handleMessage(sock, msg);
       } catch (err) {
         console.error('Erro tratando mensagem:', err.message);
       }
     }
   });
+
+  const reminderMin = biz.lembrete_min ?? 60;
+  if (!reminderTimer && reminderMin > 0) {
+    reminderTimer = setInterval(() => checkReminders(reminderMin), 5 * 60 * 1000);
+  }
 }
 
-async function handleMessage(sock, msg) {
+async function checkReminders(withinMin) {
+  if (!currentSock) return;
+  for (const b of store.bookingsNeedingReminder(withinMin)) {
+    try {
+      await send(currentSock, b.jid, `⏰ Lembrete: ${b.service} hoje às ${b.time} aqui na ${biz.nome}. Te esperamos!`);
+      store.markReminded(b.id);
+    } catch (e) {
+      console.error(`Falha no lembrete ${b.id}:`, e.message);
+    }
+  }
+}
+
+function handleMessage(sock, msg) {
   const jid = msg.key.remoteJid;
   if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') return;
 
   const text =
     msg.message?.conversation ||
     msg.message?.extendedTextMessage?.text ||
+    msg.message?.imageMessage?.caption ||
     '';
-  if (!text) return;
 
   if (msg.key.fromMe) {
     if (botSentIds.has(msg.key.id)) { botSentIds.delete(msg.key.id); return; }
+    if (!text) return;
 
     if (commands.isOwnerCommand(text)) {
       const out = commands.handle(text, jid);
-      if (out) await send(sock, jid, out);
+      if (out) enqueue(jid, () => send(sock, jid, out));
     } else {
-
       store.pause(jid, 4);
       console.log(`🤫 Humano assumiu ${jid} — bot pausado 4h.`);
     }
@@ -81,8 +139,36 @@ async function handleMessage(sock, msg) {
 
   if (store.isPaused(jid)) return;
 
-  const out = await reply(biz, jid, text);
-  await send(sock, jid, out);
+  if (!text) {
+    const isMedia = msg.message?.audioMessage || msg.message?.imageMessage ||
+      msg.message?.videoMessage || msg.message?.documentMessage;
+    if (isMedia) enqueue(jid, () => send(sock, jid, MEDIA_MSG));
+    return;
+  }
+
+  bufferText(sock, jid, text);
+}
+
+function bufferText(sock, jid, text) {
+  const buf = buffers.get(jid) || { texts: [], timer: null };
+  buf.texts.push(text);
+  if (buf.timer) clearTimeout(buf.timer);
+  buf.timer = setTimeout(() => {
+    buffers.delete(jid);
+    const joined = buf.texts.join('\n');
+    enqueue(jid, async () => {
+      try {
+        const out = await reply(biz, jid, joined);
+        await send(sock, jid, out);
+      } catch (err) {
+        console.error(`Provider falhou pra ${jid}:`, err.message);
+        await send(sock, jid, FALLBACK_MSG);
+        store.pause(jid, 1);
+        await alertOwner(`⚠️ ZapAtendente: falha ao responder ${jid.split('@')[0]} ("${err.message}"). Chat pausado 1h — responda manualmente.`);
+      }
+    });
+  }, BUFFER_MS);
+  buffers.set(jid, buf);
 }
 
 async function send(sock, jid, text) {

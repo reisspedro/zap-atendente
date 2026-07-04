@@ -12,6 +12,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         date: { type: 'string', description: 'Data no formato AAAA-MM-DD' },
+        service: { type: 'string', description: 'Nome do serviço, se já souber — considera a duração real dele' },
       },
       required: ['date'],
     },
@@ -47,12 +48,17 @@ const TOOLS = [
 ];
 
 function runTool(biz, jid, name, input) {
-  if (name === 'ver_horarios') return freeSlots(biz, input.date);
+  if (name === 'ver_horarios') {
+    const svc = input.service
+      ? biz.servicos.find((s) => s.nome.toLowerCase() === input.service.toLowerCase())
+      : null;
+    return freeSlots(biz, input.date, svc?.duracao_min);
+  }
   if (name === 'agendar') return book(biz, jid, input.client_name, input.service, input.date, input.time);
   if (name === 'meus_agendamentos') return { bookings: store.bookingsByJid(jid) };
   if (name === 'cancelar_agendamento') {
-    const changes = store.cancelBooking(input.id);
-    return changes ? { ok: true } : { error: 'Agendamento não encontrado' };
+    const changes = store.cancelBookingForJid(input.id, jid);
+    return changes ? { ok: true } : { error: 'Agendamento não encontrado entre os seus' };
   }
   return { error: `Tool desconhecida: ${name}` };
 }
@@ -105,6 +111,16 @@ async function apiReply(biz, jid, messages) {
     .trim() || '…';
 }
 
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 60000;
+
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`provider não respondeu em ${ms / 1000}s`)), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 async function reply(biz, jid, text) {
   store.addMessage(jid, 'user', text);
 
@@ -117,13 +133,13 @@ async function reply(biz, jid, text) {
     out = fakeReply(biz, jid, text);
   } else if (provider === 'anthropic') {
     const messages = store.history(jid).map((m) => ({ role: m.role, content: m.content }));
-    out = await apiReply(biz, jid, messages);
+    out = await withTimeout(apiReply(biz, jid, messages), LLM_TIMEOUT_MS);
   } else if (provider === 'claude-code') {
     const { sdkReply } = require('./brain-sdk');
-    out = await sdkReply(biz, jid, text);
+    out = await withTimeout(sdkReply(biz, jid, text), LLM_TIMEOUT_MS);
   } else {
     const { openaiReply } = require('./brain-openai');
-    out = await openaiReply(biz, jid, text, TOOLS, runTool);
+    out = await withTimeout(openaiReply(biz, jid, text, TOOLS, runTool), LLM_TIMEOUT_MS);
   }
 
   store.addMessage(jid, 'assistant', out);

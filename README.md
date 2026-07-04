@@ -7,14 +7,20 @@ Feito pra barbearia, salão, clínica, estética, petshop, oficina — qualquer 
 ## O que faz
 
 - Responde dúvidas (preços, serviços, endereço, FAQ) com tom configurável
-- **Agenda de verdade**: consulta horários livres, oferece opções, confirma e grava
-- Cliente consulta e cancela o próprio horário pela conversa
+- **Agenda de verdade**: consulta horários livres respeitando a **duração de cada serviço**, oferece opções, confirma e grava — sem furo nem sobreposição
+- Cliente consulta e cancela o próprio horário pela conversa (só os dele)
+- **Lembrete automático** 1h antes do horário (configurável via `lembrete_min`) — menos furo de agenda
+- Junta mensagens picadas do cliente e responde uma vez só (fila por contato)
+- Se a IA falhar: o cliente recebe uma mensagem honesta e **o dono é alertado no WhatsApp**
+- Responde educadamente a áudio/imagem pedindo texto (não fica mudo)
 - **Dono no controle pelo próprio WhatsApp**:
   - `#agenda hoje` / `#agenda amanha` / `#agenda 2026-06-20` — vê o dia
   - `#cancelar <id>` — cancela
   - `#pausar` / `#ativar` — silencia o bot num chat
   - **Handoff automático**: se o dono responder um cliente manualmente, o bot se cala naquele chat por 4h
-- Ignora grupos e status. Memória de conversa por contato.
+- Ignora grupos e status. Memória de conversa por contato. Reconexão automática com backoff.
+
+Roteiro de demonstração pra prospect: [docs/DEMO.md](docs/DEMO.md)
 
 ## Stack
 

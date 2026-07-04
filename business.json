@@ -19,6 +19,7 @@
     "dom": null
   },
   "slot_min": 30,
+  "lembrete_min": 60,
   "faq": [
     { "q": "Aceita cartão?", "a": "Sim — débito, crédito e Pix." },
     { "q": "Precisa marcar?", "a": "Sim, atendemos só com horário marcado." },

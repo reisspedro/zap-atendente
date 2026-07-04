@@ -7,6 +7,7 @@ fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
+db.pragma('busy_timeout = 5000');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS messages (
@@ -23,6 +24,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   service TEXT NOT NULL,
   date TEXT NOT NULL,
   time TEXT NOT NULL,
+  duration_min INTEGER NOT NULL DEFAULT 30,
+  reminded INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'confirmado' CHECK (status IN ('confirmado','cancelado')),
   created_at TEXT DEFAULT (datetime('now','localtime'))
 );
@@ -34,6 +37,14 @@ CREATE INDEX IF NOT EXISTS idx_msg_jid ON messages(jid, id);
 CREATE INDEX IF NOT EXISTS idx_book_date ON bookings(date, status);
 `);
 
+for (const col of ['duration_min INTEGER NOT NULL DEFAULT 30', 'reminded INTEGER NOT NULL DEFAULT 0']) {
+  try { db.exec(`ALTER TABLE bookings ADD COLUMN ${col}`); } catch {}
+}
+try {
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_book_slot ON bookings(date, time) WHERE status='confirmado'");
+} catch {}
+db.prepare("DELETE FROM messages WHERE created_at < datetime('now','localtime','-90 days')").run();
+
 const store = {
   addMessage(jid, role, content) {
     db.prepare('INSERT INTO messages (jid, role, content) VALUES (?,?,?)').run(jid, role, content);
@@ -44,10 +55,13 @@ const store = {
     ).all(jid, limit).reverse();
   },
 
-  addBooking(jid, clientName, service, date, time) {
+  addBooking(jid, clientName, service, date, time, durationMin = 30) {
     return db.prepare(
-      'INSERT INTO bookings (jid, client_name, service, date, time) VALUES (?,?,?,?,?)'
-    ).run(jid, clientName, service, date, time).lastInsertRowid;
+      'INSERT INTO bookings (jid, client_name, service, date, time, duration_min) VALUES (?,?,?,?,?,?)'
+    ).run(jid, clientName, service, date, time, durationMin).lastInsertRowid;
+  },
+  withTx(fn) {
+    return db.transaction(fn)();
   },
   bookingsOn(date) {
     return db.prepare(
@@ -61,6 +75,21 @@ const store = {
   },
   cancelBooking(id) {
     return db.prepare("UPDATE bookings SET status='cancelado' WHERE id=?").run(id).changes;
+  },
+  cancelBookingForJid(id, jid) {
+    return db.prepare(
+      "UPDATE bookings SET status='cancelado' WHERE id=? AND jid=? AND status='confirmado'"
+    ).run(id, jid).changes;
+  },
+  bookingsNeedingReminder(withinMin) {
+    return db.prepare(
+      `SELECT * FROM bookings WHERE status='confirmado' AND reminded=0
+       AND datetime(date || ' ' || time) BETWEEN datetime('now','localtime')
+       AND datetime('now','localtime','+' || ? || ' minutes')`
+    ).all(withinMin);
+  },
+  markReminded(id) {
+    db.prepare('UPDATE bookings SET reminded=1 WHERE id=?').run(id);
   },
   isSlotTaken(date, time) {
     return !!db.prepare(
