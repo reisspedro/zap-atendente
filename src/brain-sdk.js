@@ -11,7 +11,7 @@ function loadSdk() {
   return sdkPromise;
 }
 
-function buildTools(sdk, z, biz, jid) {
+function buildTools(sdk, z, biz, jid, ctx) {
   return sdk.createSdkMcpServer({
     name: 'agenda',
     version: '1.0.0',
@@ -29,7 +29,9 @@ function buildTools(sdk, z, biz, jid) {
         'Confirma agendamento. Só após cliente confirmar serviço, data, horário e nome.',
         { client_name: z.string(), service: z.string(), date: z.string(), time: z.string() },
         async (a) => ({
-          content: [{ type: 'text', text: JSON.stringify(book(biz, jid, a.client_name, a.service, a.date, a.time)) }],
+          content: [{ type: 'text', text: JSON.stringify(ctx?.expired
+            ? { error: 'Tempo esgotado — ação NÃO executada.' }
+            : book(biz, jid, a.client_name, a.service, a.date, a.time)) }],
         })
       ),
       sdk.tool(
@@ -45,14 +47,16 @@ function buildTools(sdk, z, biz, jid) {
         'Cancela agendamento pelo id (de meus_agendamentos). Confirme antes.',
         { id: z.number() },
         async ({ id }) => ({
-          content: [{ type: 'text', text: JSON.stringify(store.cancelBooking(id) ? { ok: true } : { error: 'não encontrado' }) }],
+          content: [{ type: 'text', text: JSON.stringify(ctx?.expired
+            ? { error: 'Tempo esgotado — ação NÃO executada.' }
+            : store.cancelBookingForJid(id, jid) ? { ok: true } : { error: 'não encontrado' }) }],
         })
       ),
     ],
   });
 }
 
-async function sdkReply(biz, jid, text) {
+async function sdkReply(biz, jid, text, ctx) {
   const sdk = await loadSdk();
   const { z } = await import('zod');
 
@@ -69,7 +73,7 @@ async function sdkReply(biz, jid, text) {
     options: {
       model: MODEL,
       systemPrompt: systemPrompt(biz),
-      mcpServers: { agenda: buildTools(sdk, z, biz, jid) },
+      mcpServers: { agenda: buildTools(sdk, z, biz, jid, ctx) },
       allowedTools: [
         'mcp__agenda__ver_horarios',
         'mcp__agenda__agendar',

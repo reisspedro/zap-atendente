@@ -11,6 +11,7 @@ const commands = require('./commands');
 
 const BIZ_PATH = process.env.BUSINESS_CONFIG || path.join(__dirname, '..', 'business.json');
 const biz = JSON.parse(fs.readFileSync(BIZ_PATH, 'utf8'));
+if (biz.timezone) process.env.TZ = biz.timezone;
 
 const AUTH_DIR = process.env.AUTH_DIR || path.join(__dirname, '..', 'data', 'auth');
 
@@ -162,8 +163,8 @@ function bufferText(sock, jid, text) {
         await send(sock, jid, out);
       } catch (err) {
         console.error(`Provider falhou pra ${jid}:`, err.message);
-        await send(sock, jid, FALLBACK_MSG);
         store.pause(jid, 1);
+        try { await send(sock, jid, FALLBACK_MSG); } catch (e) { console.error(`Falha ao enviar fallback pra ${jid}:`, e.message); }
         await alertOwner(`⚠️ ZapAtendente: falha ao responder ${jid.split('@')[0]} ("${err.message}"). Chat pausado 1h — responda manualmente.`);
       }
     });

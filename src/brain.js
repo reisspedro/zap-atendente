@@ -47,7 +47,10 @@ const TOOLS = [
   },
 ];
 
-function runTool(biz, jid, name, input) {
+function runTool(biz, jid, name, input, ctx) {
+  if (ctx?.expired && (name === 'agendar' || name === 'cancelar_agendamento')) {
+    return { error: 'Tempo esgotado — ação NÃO executada. Peça pro cliente confirmar de novo.' };
+  }
   if (name === 'ver_horarios') {
     const svc = input.service
       ? biz.servicos.find((s) => s.nome.toLowerCase() === input.service.toLowerCase())
@@ -72,7 +75,7 @@ function fakeReply(biz, jid, text) {
   return `[FAKE] Recebi: "${text}"`;
 }
 
-async function apiReply(biz, jid, messages) {
+async function apiReply(biz, jid, messages, ctx) {
   const Anthropic = require('@anthropic-ai/sdk');
   const client = new Anthropic();
 
@@ -92,7 +95,7 @@ async function apiReply(biz, jid, messages) {
       content: toolUses.map((tu) => ({
         type: 'tool_result',
         tool_use_id: tu.id,
-        content: JSON.stringify(runTool(biz, jid, tu.name, tu.input)),
+        content: JSON.stringify(runTool(biz, jid, tu.name, tu.input, ctx)),
       })),
     });
     response = await client.messages.create({
@@ -113,11 +116,16 @@ async function apiReply(biz, jid, messages) {
 
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 60000;
 
-function withTimeout(promise, ms) {
+function withTimeout(promise, ms, ctx) {
   let timer;
   return Promise.race([
     promise,
-    new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`provider não respondeu em ${ms / 1000}s`)), ms); }),
+    new Promise((_, rej) => {
+      timer = setTimeout(() => {
+        if (ctx) ctx.expired = true;
+        rej(new Error(`provider não respondeu em ${ms / 1000}s`));
+      }, ms);
+    }),
   ]).finally(() => clearTimeout(timer));
 }
 
@@ -128,18 +136,19 @@ async function reply(biz, jid, text) {
     ? 'fake'
     : (process.env.PROVIDER || (process.env.USE_API ? 'anthropic' : 'openai'));
 
+  const ctx = { expired: false };
   let out;
   if (provider === 'fake') {
     out = fakeReply(biz, jid, text);
   } else if (provider === 'anthropic') {
     const messages = store.history(jid).map((m) => ({ role: m.role, content: m.content }));
-    out = await withTimeout(apiReply(biz, jid, messages), LLM_TIMEOUT_MS);
+    out = await withTimeout(apiReply(biz, jid, messages, ctx), LLM_TIMEOUT_MS, ctx);
   } else if (provider === 'claude-code') {
     const { sdkReply } = require('./brain-sdk');
-    out = await withTimeout(sdkReply(biz, jid, text), LLM_TIMEOUT_MS);
+    out = await withTimeout(sdkReply(biz, jid, text, ctx), LLM_TIMEOUT_MS, ctx);
   } else {
     const { openaiReply } = require('./brain-openai');
-    out = await withTimeout(openaiReply(biz, jid, text, TOOLS, runTool), LLM_TIMEOUT_MS);
+    out = await withTimeout(openaiReply(biz, jid, text, TOOLS, (b, j, n, i) => runTool(b, j, n, i, ctx)), LLM_TIMEOUT_MS, ctx);
   }
 
   store.addMessage(jid, 'assistant', out);
